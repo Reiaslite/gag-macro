@@ -535,13 +535,15 @@ StartMacro() {
                 ; Check if file exists
                 if (!FileExist(imagePath)) {
                     UpdateStatus("Error: Image file not found: " . imagePath)
-                    return false
+                    Sleep(config.searchDelay)
+                    continue
                 }
                 UpdateStatus("Searching for seeds button...")
 
                 if (!SearchAndClick(imagePath)) {
-                    UpdateStatus("Seeds button not found on screen. Check if Roblox window is active.")
-                    return false ; Seeds button not found
+                    UpdateStatus("Seeds button not found. Retrying in " . config.searchDelay . "ms...")
+                    Sleep(config.searchDelay)
+                    continue ; Try again in next loop iteration
                 }
                 UpdateStatus("Seeds button clicked, waiting...")
                 ; Step 2: Wait 0.5 seconds before pressing E
@@ -600,19 +602,25 @@ StartMacro() {
                 UpdateStatus("Pressed Up key 23 times")
                 Sleep(500) ; Wait for the action to complete
 
+                Send("{Enter}") ; Confirm exit
+                Sleep(500) ; Wait for the action to complete
+
                 ; Step 7: Close navigation menu by pressing \ key
                 Send("{\}")
-                UpdateStatus("Closed navigation menu by pressing \\ key")
+                UpdateStatus("Closed navigation menu. Completed buying all seeds!")
 
-                return true
+                ; Wait before starting next cycle
+                UpdateStatus("Waiting 5 seconds before next cycle...")
+                Sleep(5000)
 
             } catch as err {
-                UpdateStatus("Error in BuyAllSeeds: " . err.Message)
-                return false
+                UpdateStatus("Error: " . err.Message . " - Retrying...")
+                Sleep(config.searchDelay)
+                continue
             }
         } else {
             UpdateStatus("Error: Image file not found: " . imagePath)
-            Sleep(config.searchDelay) ; Wait before retrying
+            Sleep(config.searchDelay)
             continue
         }
 
