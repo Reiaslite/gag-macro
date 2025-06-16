@@ -25,7 +25,20 @@ global config := {
         delayBeforeE: 1500, ; 1.5 seconds before pressing E
         downKeyPresses: 2,
         enterKeyPresses: 15,
-        seedTypesToBuy: 22 ; Number of different seed types to buy
+        seedTypesToBuy: 22, ; Number of different seed types to buy
+        delayBetweenCycles: 5000, ; 5 seconds between complete cycles
+        navigationDelay: 100, ; Delay between navigation keys
+        seedButtonImage: "images/main_button/seeds_button.png"
+    },
+    ; Buy All Gears macro settings
+    buyGears: {
+        enabled: true, ; Enable/disable gear buying
+        enterKeyPresses: 5, ; Number of Enter key presses to confirm purchase
+        navigationDelay: 100, ; Delay between navigation keys
+        gearTypesToBuy: 8, ; Number of different gear types to buy
+        recallWrenchKey: "2", ; Key to activate Recall Wrench
+        gearMenuX: 569, ; X coordinate for gear menu button
+        gearMenuY: 325 ; Y coordinate for gear menu button
     }
 }
 
@@ -513,117 +526,56 @@ StartMacro() {
         return
     }
 
-    UpdateStatus("Macro running - Buy All Seeds mode...")
+    UpdateStatus("Macro running - Buy All Seeds and Gears mode...")
 
-    ; Main loop - Buy All Seeds
+    ; Main loop - Execute both seed and gear buying cycles
     while (isRunning) {
-        global config
-        imagePath := "images/main_button/seeds_button.png"
+        cycleSuccess := true
 
-        ; Check if the image file exists
-        if (FileExist(imagePath)) {
-
-            UpdateStatus("Image file found: " . imagePath)
-            Sleep(100)
-            UpdateStatus("Searching for seeds...")
-            Sleep(100)
-
-            try {
-                ; Step 1: Look for and click seeds_button image
-                imagePath := "images/main_button/seeds_button.png"
-
-                ; Check if file exists
-                if (!FileExist(imagePath)) {
-                    UpdateStatus("Error: Image file not found: " . imagePath)
-                    Sleep(config.searchDelay)
-                    continue
-                }
-                UpdateStatus("Searching for seeds button...")
-
-                if (!SearchAndClick(imagePath)) {
-                    UpdateStatus("Seeds button not found. Retrying in " . config.searchDelay . "ms...")
-                    Sleep(config.searchDelay)
-                    continue ; Try again in next loop iteration
-                }
-                UpdateStatus("Seeds button clicked, waiting...")
-                ; Step 2: Wait 0.5 seconds before pressing E
-                Sleep(config.buySeeds.delayBeforeE)
-
-                ; Step 3: Press E key
-                Send("{e}")
-                UpdateStatus("Pressed e key")
-                Sleep(config.buySeeds.delayBeforeE) ; 0.5 seconds delay
-
-                ; Step 4: Press \ key
-                Send("{\}")
-                UpdateStatus("Pressed \ key")
-                Sleep(config.buySeeds.delayBeforeE)
-
-                ; Main Step: Buy all different seed types (looped)
-                UpdateStatus("Starting to buy " . config.buySeeds.seedTypesToBuy . " different seed types...")
-
-                loop config.buySeeds.seedTypesToBuy {
-                    currentSeedType := A_Index
-                    UpdateStatus("Buying seed type " . currentSeedType . " of " . config.buySeeds.seedTypesToBuy)
-
-                    ; Step 5: Press Down arrow key to navigate to seed type
-                    loop config.buySeeds.downKeyPresses {
-                        Send("{Down}")
-                        Sleep(500) ; Small delay between presses
-                    }
-
-                    Send("{Enter}") ; Press Enter to confirm selection
-                    Sleep(200) ; Wait for the action to complete
-
-                    Send("{Down}")
-                    Sleep(100) ; Wait for the action to complete
-
-                    ; Step 6: Press Enter key multiple times to buy seeds
-                    loop config.buySeeds.enterKeyPresses {
-                        Send("{Enter}")
-                        Sleep(100) ; Small delay between presses
-                    }
-                    UpdateStatus("Bought seed type " . currentSeedType . " (pressed Enter " . config.buySeeds.enterKeyPresses .
-                        " times)")
-
-                    ; If not the last seed type, go back up to select next seed
-                    if (currentSeedType < config.buySeeds.seedTypesToBuy) {
-                        Send("{Up}") ; Go back up one to the next seed type
-                        Sleep(200)
-                        UpdateStatus("Moving to next seed type...")
-                    }
-                }
-                ; End of main step, now we need to close the navigation menu
-
-                loop 23 {
-                    Send("{Up}")
-                    Sleep(100) ; Small delay between presses
-                }
-                UpdateStatus("Pressed Up key 23 times")
-                Sleep(500) ; Wait for the action to complete
-
-                Send("{Enter}") ; Confirm exit
-                Sleep(500) ; Wait for the action to complete
-
-                ; Step 7: Close navigation menu by pressing \ key
-                Send("{\}")
-                UpdateStatus("Closed navigation menu. Completed buying all seeds!")
-
-                ; Wait before starting next cycle
-                UpdateStatus("Waiting 5 seconds before next cycle...")
-                Sleep(5000)
-
-            } catch as err {
-                UpdateStatus("Error: " . err.Message . " - Retrying...")
-                Sleep(config.searchDelay)
-                continue
-            }
-        } else {
-            UpdateStatus("Error: Image file not found: " . imagePath)
+        ; === SEED BUYING CYCLE ===
+        ; Check if seed button image exists
+        if (!FileExist(config.buySeeds.seedButtonImage)) {
+            UpdateStatus("Error: Seed button image not found at: " . config.buySeeds.seedButtonImage)
             Sleep(config.searchDelay)
             continue
         }
 
+        ; Execute the seed buying cycle
+        UpdateStatus("=== Starting Seed Buying Cycle ===")
+        if (ExecuteSeedBuyingCycle()) {
+            UpdateStatus("Seed buying completed successfully!")
+        } else {
+            UpdateStatus("Seed buying failed - will retry next cycle")
+            cycleSuccess := false
+        }
+
+        ; Short delay between seed and gear buying
+        if (cycleSuccess && config.buyGears.enabled) {
+            UpdateStatus("Waiting 3 seconds before gear buying...")
+            Sleep(3000)
+        }
+
+        ; === GEAR BUYING CYCLE ===
+        if (cycleSuccess && config.buyGears.enabled) {
+            UpdateStatus("=== Starting Gear Buying Cycle ===")
+            if (ExecuteGearBuyingCycle()) {
+                UpdateStatus("Gear buying completed successfully!")
+            } else {
+                UpdateStatus("Gear buying failed - will retry next cycle")
+                cycleSuccess := false
+            }
+        }
+
+        ; Wait before next complete cycle
+        if (cycleSuccess) {
+            UpdateStatus("=== Cycle Complete ===")
+            UpdateStatus("Waiting " . (config.buySeeds.delayBetweenCycles / 1000) . " seconds before next cycle...")
+            Sleep(config.buySeeds.delayBetweenCycles)
+        } else {
+            ; Failed - retry after short delay
+            UpdateStatus("Cycle failed - retrying in " . (config.searchDelay / 1000) . " seconds...")
+            Sleep(config.searchDelay)
+        }
     }
 }
 
@@ -722,7 +674,245 @@ WaitForImage(imagePath, timeout := 5000) {
     return { x: 0, y: 0, found: false }
 }
 
-; Hotkeys
+; ========== Seed Buying Helper Functions ==========
+
+; Navigate menu with arrow keys
+NavigateMenu(direction, count, delay := 100) {
+    loop count {
+        Send("{" . direction . "}")
+        Sleep(delay)
+    }
+}
+
+; Open the seed buying menu
+OpenSeedMenu() {
+    global config
+
+    ; Press E to interact
+    Send("{e}")
+    UpdateStatus("Pressed E key")
+    Sleep(config.buySeeds.delayBeforeE)
+
+    ; Press \ to open menu
+    Send("{\}")
+    UpdateStatus("Opened seed menu")
+    Sleep(config.buySeeds.delayBeforeE)
+}
+
+; Buy a single seed type
+BuySingleSeedType(seedNumber, totalSeeds) {
+    global config
+
+    UpdateStatus("Buying seed type " . seedNumber . " of " . totalSeeds)
+
+    ; Navigate to seed type
+    NavigateMenu("Down", config.buySeeds.downKeyPresses, 500)
+
+    ; Confirm selection
+    Send("{Enter}")
+    Sleep(200)
+
+    ; Go to quantity selection
+    Send("{Down}")
+    Sleep(100)
+
+    ; Buy seeds
+    loop config.buySeeds.enterKeyPresses {
+        Send("{Enter}")
+        Sleep(config.buySeeds.navigationDelay)
+    }
+
+    UpdateStatus("Bought seed type " . seedNumber)
+
+    ; Navigate back for next seed (if not last)
+    if (seedNumber < totalSeeds) {
+        Send("{Up}")
+        Sleep(200)
+    }
+}
+
+; Close the seed buying menu
+CloseSeedMenu() {
+    global config
+
+    ; Navigate to top of menu
+    NavigateMenu("Up", 23, config.buySeeds.navigationDelay)
+    UpdateStatus("Navigated to top of menu")
+    Sleep(500)
+
+    ; Confirm exit
+    Send("{Enter}")
+    Sleep(500)
+
+    ; Close menu
+    Send("{\}")
+    UpdateStatus("Closed seed menu")
+}
+
+; Execute the complete seed buying cycle
+ExecuteSeedBuyingCycle() {
+    global config
+
+    try {
+        ; Step 1: Find and click seeds button
+        if (!SearchAndClick(config.buySeeds.seedButtonImage)) {
+            UpdateStatus("Seeds button not found. Will retry...")
+            return false
+        }
+
+        UpdateStatus("Seeds button clicked, opening menu...")
+        Sleep(config.buySeeds.delayBeforeE)
+
+        ; Step 2: Open seed menu
+        OpenSeedMenu()
+
+        ; Step 3: Buy all seed types
+        UpdateStatus("Starting to buy " . config.buySeeds.seedTypesToBuy . " seed types...")
+        loop config.buySeeds.seedTypesToBuy {
+            BuySingleSeedType(A_Index, config.buySeeds.seedTypesToBuy)
+        }
+
+        ; Step 4: Close menu
+        CloseSeedMenu()
+
+        UpdateStatus("Completed buying all seeds!")
+        return true
+
+    } catch as err {
+        UpdateStatus("Error during seed buying: " . err.Message)
+        return false
+    }
+}
+
+; ========== Gear Buying Helper Functions ==========
+
+OpenGearMenu() {
+    global config
+
+    ; Press the recall wrench key
+    Send("{" . config.buyGears.recallWrenchKey . "}")
+    UpdateStatus("Pressed " . config.buyGears.recallWrenchKey . " key to use Recall Wrench")
+    Sleep(config.buySeeds.delayBeforeE)
+
+    ; Click center of screen to use Recall Wrench
+    MouseMove(579, 278, 3)
+    Sleep(500)
+    Click(579, 278)
+    Sleep(100)
+    Click(579, 278)
+    Sleep(1000)
+    UpdateStatus("Used Recall Wrench")
+
+    ; Press E to open gear menu
+    Send("{e}")
+    UpdateStatus("Opened gear menu")
+    Sleep(config.buySeeds.delayBeforeE)
+
+    ; Click on gear menu button using configured coordinates
+    MouseMove(config.buyGears.gearMenuX - 3, config.buyGears.gearMenuY - 3, 5)
+    Sleep(50)
+    MouseMove(config.buyGears.gearMenuX + 3, config.buyGears.gearMenuY - 3, 5)
+    Sleep(50)
+    MouseMove(config.buyGears.gearMenuX + 3, config.buyGears.gearMenuY + 3, 5)
+    Sleep(50)
+    MouseMove(config.buyGears.gearMenuX - 3, config.buyGears.gearMenuY + 3, 5)
+    Sleep(50)
+    MouseMove(config.buyGears.gearMenuX, config.buyGears.gearMenuY, 5)
+    Sleep(100)
+
+    Sleep(500)
+    Click(config.buyGears.gearMenuX, config.buyGears.gearMenuY)
+    Sleep(1000)
+    UpdateStatus("Accessed gear purchase menu")
+
+    ; Press \ to open navigation menu
+    Send("{\}")
+    UpdateStatus("Opened gear navigation menu")
+    Sleep(config.buySeeds.delayBeforeE)
+}
+
+BuyGearType(gearNumber, totalGears) {
+    global config
+
+    UpdateStatus("Buying gear type " . gearNumber . " of " . totalGears)
+
+    ; Navigate to gear type
+    NavigateMenu("Down", config.buySeeds.downKeyPresses, 500)
+
+    ; Confirm selection
+    Send("{Enter}")
+    Sleep(200)
+
+    ; Go to quantity selection
+    Send("{Down}")
+    Sleep(100)
+
+    ; Buy gears
+    loop config.buyGears.enterKeyPresses {
+        Send("{Enter}")
+        Sleep(config.buyGears.navigationDelay)
+    }
+
+    UpdateStatus("Bought gear type " . gearNumber)
+
+    ; Navigate back for next gear (if not last)
+    if (gearNumber < totalGears) {
+        Send("{Up}")
+        Sleep(200)
+    }
+}
+
+CloseGearMenu() {
+    global config
+
+    ; Navigate to top of menu
+    NavigateMenu("Up", 9, config.buySeeds.navigationDelay)
+    UpdateStatus("Navigated to top of gear menu")
+    Sleep(500)
+
+    ; Confirm exit
+    Send("{Enter}")
+    Sleep(500)
+
+    ; Close menu
+    Send("{\}")
+    UpdateStatus("Closed gear menu")
+}
+
+; Execute the complete gear buying cycle
+ExecuteGearBuyingCycle() {
+    global config
+
+    ; Check if gear buying is enabled
+    if (!config.buyGears.enabled) {
+        UpdateStatus("Gear buying is disabled - skipping")
+        return true
+    }
+
+    try {
+        ; Step 1: Open gear menu
+        OpenGearMenu()
+
+        ; Step 2: Buy all gear types
+        UpdateStatus("Starting to buy " . config.buyGears.gearTypesToBuy . " gear types...")
+        loop config.buyGears.gearTypesToBuy {
+            BuyGearType(A_Index, config.buyGears.gearTypesToBuy)
+        }
+
+        ; Step 3: Close menu
+        CloseGearMenu()
+
+        UpdateStatus("Completed buying all gears!")
+        return true
+
+    } catch as err {
+        UpdateStatus("Error during gear buying: " . err.Message)
+        return false
+    }
+}
+
+; ========== Hotkeys and Initialization ==========
+; Hotkeys for GUI control
 F1:: StartMacroGUI()
 F2:: StopMacroGUI()
 F3:: Reload
