@@ -25,14 +25,14 @@ global config := {
         delayBeforeE: 1500, ; 1.5 seconds before pressing E
         downKeyPresses: 2,
         enterKeyPresses: 15,
-        seedTypesToBuy: 22, ; Number of different seed types to buy
+        seedTypesToBuy: 16, ; Number of different seed types to buy
         delayBetweenCycles: 5000, ; 5 seconds between complete cycles
         navigationDelay: 100, ; Delay between navigation keys
         seedButtonImage: "images/main_button/seeds_button.png"
     },
     ; Buy All Gears macro settings
     buyGears: {
-        enabled: true, ; Enable/disable gear buying
+        enabled: false, ; Enable/disable gear buying
         enterKeyPresses: 5, ; Number of Enter key presses to confirm purchase
         navigationDelay: 100, ; Delay between navigation keys
         gearTypesToBuy: 8, ; Number of different gear types to buy
@@ -736,7 +736,7 @@ CloseSeedMenu() {
     global config
 
     ; Navigate to top of menu
-    NavigateMenu("Up", 23, config.buySeeds.navigationDelay)
+    NavigateMenu("Up", 17, config.buySeeds.navigationDelay)
     UpdateStatus("Navigated to top of menu")
     Sleep(500)
 
